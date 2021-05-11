@@ -8,9 +8,10 @@ class NodeFunctions{
     private int Id;
     private InetAddress ip;
     private int port;
+    private DatagramSocket server;
     private ArrayList<NodeFunctions> neighbors = new ArrayList<NodeFunctions>();
-    private ArrayList<Integer> transactions = new ArrayList<Integer>();
-    //private List<Client> clients = new ArrayList<Node>();
+    private ArrayList<String> transactions = new ArrayList<String>();
+    private ArrayList<String> clients = new ArrayList<String>();
     private HashMap<String, String> dataStorage = new HashMap<String, String>();
 
     public NodeFunctions(int port){
@@ -25,20 +26,35 @@ class NodeFunctions{
     public String responsePacket(){
         return null;
     }
-    public int randId(){
-        return (int)(Math.random() * 1000); 
+    public String randId(String type){
+        String id = null;
+
+        switch(type){
+            case "get":
+                id = "G"+(Math.random() * 1000); 
+            case "set":
+                id = "S"+(Math.random() * 1000); 
+            case "response":
+                id = "R"+(Math.random() * 1000);
+            case "connect":
+                id = "C"+(Math.random() * 1000);
+        }
+        return id;
     }
     public String connectPacket(){
-        int transationId = randId();
-        return "CONNECT:"+this.transationId+":"+this.Id+":"+this.port;
+        String transationId = randId("connect");
+        return "CONNECT:"+transationId+":"+this.Id+":"+this.port;
+    }
+    public void setServer(DatagramSocket server){
+        this.server = server;
     }
     public void addNeighbor(NodeFunctions n){
         this.neighbors.add(n);
     }
-    public void addTransaction(int id){
+    public void addTransaction(String id){
         transactions.add(id);
     }
-    public ArrayList<Integer> getTransactions(){
+    public ArrayList<String> getTransactions(){
         return this.transactions;
     }
     public HashMap<String, String> getData(){
@@ -46,6 +62,20 @@ class NodeFunctions{
     }
     public ArrayList<NodeFunctions> getNeighbors(){
         return this.neighbors;
+    }
+    public void addClient(String client){
+        this.clients.add(client);
+    }
+    public ArrayList<String> getClients(){
+        return this.clients;
+    }
+    public boolean hasClient(String clientId){
+        //for(String c: this.clients){
+        //    if(c.getId() == client.getId()){
+        //        return true;
+        //    }
+        //}
+        return false;
     }
     public String[] splitPacket(String packet){
         String[] arrOfStr = packet.split(":", 5);
@@ -59,27 +89,30 @@ class NodeFunctions{
     public boolean isFull(){
         return (dataStorage.size() == 5)? true:false;
     }
-    public void broadcast(String packet){
+    public void broadcast(String packet) throws IOException{
         for(NodeFunctions n: neighbors){
             byte[] buffer = new byte[1024];
             buffer = packet.getBytes();
             InetAddress serverName = InetAddress.getByName("localhost");
-            DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
-            server.send(packet);
+            DatagramPacket datapacket = new DatagramPacket(buffer, buffer.length, serverName, n.getPort());
+            this.server.send(datapacket);
         }
     }
     public String toString(){
         return this.port+"";
     }
 }
+
 public class Node{
     public static void main(String args[]) throws IOException{
         NodeFunctions node = null;
         DatagramSocket server = null;
+        DatagramPacket packet = null;
 
         if(args.length == 1){
             node = new NodeFunctions(Integer.valueOf(args[0]));
             server = new DatagramSocket(node.getPort());
+            node.setServer(server);
         }else if(args.length == 2){
             System.out.println("Making a connection");
             int destinationPort = Integer.valueOf(args[1]);
@@ -88,46 +121,56 @@ public class Node{
 
             NodeFunctions neighbor = new NodeFunctions(destinationPort);
             node.addNeighbor(neighbor);
+            node.setServer(server);
 
-                byte[] buffer = new byte[1024];
-                String msg = node.connectPacket();
-                buffer = msg.getBytes();
-                InetAddress serverName = InetAddress.getByName("localhost");
-                DatagramPacket packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
-                server.send(packet);
+            //Send a connection Request to a specific port
+            byte[] buffer = new byte[1024];
+            String msg = node.connectPacket();
+            buffer = msg.getBytes();
+            InetAddress serverName = InetAddress.getByName("localhost");
+            packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
+            server.send(packet);
         }else{
             System.out.println("No arguments");
         }
 
         if(node != null){
             try{
-                DatagramPacket packet = null;
                 byte[] buffer = new byte[1024];
                 System.out.println("Server is listening on port "+node.getPort());
 
                 while(true){
                     packet = new DatagramPacket(buffer, buffer.length);
                     server.receive(packet);
-                    String msg = new String(packet.getData(), 0, packet.getLength());
 
+                    //Packet content
+                    String msg = new String(packet.getData(), 0, packet.getLength());
                     String packetType = node.splitPacket(msg)[0];
 
+                    //Handle different packet types
                     if(packetType.equals("CONNECT")){
                         System.out.println("added new node");
-                        int id = Integer.valueOf(node.splitPacket(msg)[1]);
+                        String id = node.splitPacket(msg)[1];
                         int port = Integer.valueOf(node.splitPacket(msg)[2]);
 
                         NodeFunctions neighbor = new NodeFunctions(port);
                         node.addNeighbor(neighbor);
+                        
+                        
                     }else if(packetType.equals("GET")){
-                        int transactionId = node.split(msg)[1];
+                        String transactionId = node.splitPacket(msg)[1];
+                        int clientId = Integer.valueOf(node.splitPacket(msg)[2]); 
 
                         if(!node.getTransactions().contains(transactionId)){
                             String key = node.splitPacket(msg)[2];
-                            node.addTransactionId(transactionId);
+                            node.addTransaction(transactionId);
 
                             if(node.getData().containsKey(key)){
-                                 
+                                String randomId = node.randId("response");                                
+                                String value = node.getData().get(key);
+                                String resp = "RESPONSE:"+randomId+":"+clientId+":"+value;
+
+                                node.broadcast(resp); 
                             }else{
                                 node.broadcast(msg);
                             }
@@ -136,12 +179,29 @@ public class Node{
                         if(!node.isFull()){
                             String key = node.splitPacket(msg)[2];
                             String value = node.splitPacket(msg)[3];
-                            int transactionId = node.split(msg)[1];
+                            String transactionId = node.splitPacket(msg)[1];
 
                             node.addData(key, value);
                             node.addTransaction(transactionId);
                         }else{
 
+                        }
+                    }else if(packetType.equals("RESPONSE")){
+                        String transactionId = node.splitPacket(msg)[1];
+                        String clientId = node.splitPacket(msg)[2];
+
+                        if(!node.getTransactions().contains(transactionId)){
+                            node.addTransaction(transactionId);
+                            //If the node has the client, then redirect the response packet to the client
+                            if(node.hasClient(clientId)){
+                                //int destinationPort = node.getClients().get(clientId).getPort();
+                                //InetAddress serverName = InetAddress.getByName("localhost");
+                                //packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
+                                //server.send(packet);
+                                ////send  
+                            }else{
+                                node.broadcast(msg);
+                            }
                         }
                     }
                 }
