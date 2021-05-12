@@ -47,13 +47,13 @@ class NodeFunctions{
 
         switch(type){
             case "get":
-                id = "G"+(Math.random() * 1000); 
+                id = "G"+(int)(Math.random() * 1000); 
             case "set":
-                id = "S"+(Math.random() * 1000); 
+                id = "S"+(int)(Math.random() * 1000); 
             case "response":
-                id = "R"+(Math.random() * 1000);
+                id = "R"+(int)(Math.random() * 1000);
             case "connect":
-                id = "C"+(Math.random() * 1000);
+                id = "C"+(int)(Math.random() * 1000);
         }
         return id;
     }
@@ -153,7 +153,7 @@ public class Node{
 
         if(node != null){
             try{
-                byte[] buffer = new byte[1024];
+                byte[] buffer = new byte[8000];
                 System.out.println("Server is listening on port "+node.getPort());
 
                 while(true){
@@ -177,6 +177,7 @@ public class Node{
                             int clientID = Integer.valueOf(node.splitPacket(msg)[3]);
                             int clientPort = Integer.valueOf(node.splitPacket(msg)[5]);
 
+                            System.out.println(clientPort);
                             Client client = new Client(clientID, clientPort);
                             node.addClient(client);
                             System.out.println("Client "+clientID+" is now connected");
@@ -187,7 +188,7 @@ public class Node{
                         int clientId = Integer.valueOf(node.splitPacket(msg)[2]); 
 
                         if(!node.getTransactions().contains(transactionId)){
-                            String key = node.splitPacket(msg)[2];
+                            String key = node.splitPacket(msg)[3];
                             node.addTransaction(transactionId);
 
                             if(node.getData().containsKey(key)){
@@ -195,7 +196,23 @@ public class Node{
                                 String value = node.getData().get(key);
                                 String resp = "RESPONSE:"+randomId+":"+clientId+":"+value;
 
-                                node.broadcast(resp); 
+                                System.out.println(value);
+                                if(node.hasClient(Integer.valueOf(clientId))){
+                                    Client client = null;
+                                    for(Client c: node.getClients()){
+                                        if(c.getId() == Integer.valueOf(clientId)){
+                                            client = c;
+                                        }
+                                    }
+                                    int destinationPort = client.getPort();
+                                    buffer = new byte[8000];
+                                    buffer = resp.getBytes();
+                                    InetAddress serverName = InetAddress.getByName("localhost");
+                                    packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
+                                    server.send(packet);
+                                }else{
+                                    node.broadcast(resp); 
+                                }
                             }else{
                                 node.broadcast(msg);
                             }
@@ -228,8 +245,10 @@ public class Node{
                                 }
                                 int destinationPort = client.getPort();
                                 InetAddress serverName = InetAddress.getByName("localhost");
+                                buffer = msg.getBytes();
                                 packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
                                 server.send(packet);
+                                System.out.println("Sending response");
                             }else{
                                 node.broadcast(msg);
                             }
