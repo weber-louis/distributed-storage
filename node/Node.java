@@ -98,20 +98,21 @@ class NodeFunctions{
         return arrOfStr;
     }
     public void addData(String key, String value){
-        if(dataStorage.size() <= 5){
+        if(dataStorage.size() <= 2){
             this.dataStorage.put(key, value);
         }
     }
     public boolean isFull(){
-        return (dataStorage.size() == 5)? true:false;
+        return (dataStorage.size() == 2)? true:false;
     }
     public void broadcast(String packet) throws IOException{
-        for(NodeFunctions n: neighbors){
-            byte[] buffer = new byte[1024];
+        for(NodeFunctions n: this.neighbors){
+            byte[] buffer = new byte[8000];
             buffer = packet.getBytes();
             InetAddress serverName = InetAddress.getByName("localhost");
             DatagramPacket datapacket = new DatagramPacket(buffer, buffer.length, serverName, n.getPort());
             this.server.send(datapacket);
+            System.out.println("broadscast " + packet);
         }
     }
     public String toString(){
@@ -128,7 +129,6 @@ public class Node{
         if(args.length == 1){
             node = new NodeFunctions(Integer.valueOf(args[0]));
             server = new DatagramSocket(node.getPort());
-            node.addData("mykey", "myvalue");
             node.setServer(server);
         }else if(args.length == 2){
             System.out.println("Making a connection");
@@ -141,7 +141,7 @@ public class Node{
             node.setServer(server);
 
             //Send a connection Request to a specific port
-            byte[] buffer = new byte[1024];
+            byte[] buffer = new byte[8000];
             String msg = node.connectPacket();
             buffer = msg.getBytes();
             InetAddress serverName = InetAddress.getByName("localhost");
@@ -153,10 +153,11 @@ public class Node{
 
         if(node != null){
             try{
-                byte[] buffer = new byte[8000];
+                byte[] buffer = null;
                 System.out.println("Server is listening on port "+node.getPort());
 
                 while(true){
+                    buffer = new byte[8000];
                     packet = new DatagramPacket(buffer, buffer.length);
                     server.receive(packet);
 
@@ -196,7 +197,7 @@ public class Node{
                                 String value = node.getData().get(key);
                                 String resp = "RESPONSE:"+randomId+":"+clientId+":"+value;
 
-                                System.out.println(value);
+                                System.out.println(resp);
                                 if(node.hasClient(Integer.valueOf(clientId))){
                                     Client client = null;
                                     for(Client c: node.getClients()){
@@ -226,8 +227,18 @@ public class Node{
                             node.addData(key, value);
                             node.addTransaction(transactionId);
                             System.out.println("result " + node.getData().get(key));
-                        }else{
+                        }else if(node.getNeighbors().size() > 0){
+                            int randomNum = (int)(Math.random() * node.getNeighbors().size());
+                            NodeFunctions randomNeighbor = node.getNeighbors().get(randomNum);
+                            int neighborPort = randomNeighbor.getPort();
+                            InetAddress serverName = InetAddress.getByName("localhost");
 
+                            buffer = new byte[8000];
+                            buffer = msg.getBytes();
+                            packet = new DatagramPacket(buffer, buffer.length, serverName, neighborPort);
+                            server.send(packet);
+                        }else{
+                            System.out.println("No data space");
                         }
                     }else if(packetType.equals("RESPONSE")){
                         String transactionId = node.splitPacket(msg)[1];
@@ -236,6 +247,7 @@ public class Node{
                         if(!node.getTransactions().contains(transactionId)){
                             node.addTransaction(transactionId);
                             //If the node has the client, then redirect the response packet to the client
+                            System.out.println(node.splitPacket(msg)[3]);
                             if(node.hasClient(Integer.valueOf(clientId))){
                                 Client client = null;
                                 for(Client c: node.getClients()){
@@ -245,9 +257,11 @@ public class Node{
                                 }
                                 int destinationPort = client.getPort();
                                 InetAddress serverName = InetAddress.getByName("localhost");
+                                buffer = new byte[8000];
                                 buffer = msg.getBytes();
                                 packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
                                 server.send(packet);
+                                System.out.println(msg);
                                 System.out.println("Sending response");
                             }else{
                                 node.broadcast(msg);
