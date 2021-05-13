@@ -12,5 +12,5 @@ Open a new terminal window and type the command > java Node <node-port> <node-po
    * **Example:** java Client 4446 4444
 
 ## Students:
-Amani Keddam
+Amani Keddam  
 Louis Weber
