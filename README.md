@@ -11,3 +11,6 @@ Open a new terminal window and type the command > java Node <node-port> <node-po
 5. Type the command > java Client <client-port> <node-port>
    * **Example:** java Client 4446 4444
 
+## Students:
+Amani Keddam
+Louis Weber
