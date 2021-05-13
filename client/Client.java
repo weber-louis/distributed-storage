@@ -8,6 +8,7 @@ public class Client{
     private static int nodePort = 0;
     private static DatagramSocket server = null;
 
+    //Get a random ID depending on the type of query
     public static String randId(String type){
         String id = null;
 
