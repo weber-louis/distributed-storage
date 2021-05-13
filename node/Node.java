@@ -112,7 +112,7 @@ class NodeFunctions{
             InetAddress serverName = InetAddress.getByName("localhost");
             DatagramPacket datapacket = new DatagramPacket(buffer, buffer.length, serverName, n.getPort());
             this.server.send(datapacket);
-            System.out.println("broadscast " + packet);
+            System.out.println("Broadcasting -> \""+packet+"\"");
         }
     }
     public String toString(){
@@ -168,8 +168,8 @@ public class Node{
                     //Handle different packet types
                     if(packetType.equals("CONNECT")){
                         if(!node.splitPacket(msg)[2].equals("null")){
-                            System.out.println("added new node");
                             String id = node.splitPacket(msg)[1];
+                            System.out.println("Connected with node "+id);
                             int port = Integer.valueOf(node.splitPacket(msg)[5]);
 
                             NodeFunctions neighbor = new NodeFunctions(port);
@@ -178,7 +178,6 @@ public class Node{
                             int clientID = Integer.valueOf(node.splitPacket(msg)[3]);
                             int clientPort = Integer.valueOf(node.splitPacket(msg)[5]);
 
-                            System.out.println(clientPort);
                             Client client = new Client(clientID, clientPort);
                             node.addClient(client);
                             System.out.println("Client "+clientID+" is now connected");
@@ -187,7 +186,7 @@ public class Node{
                     }else if(packetType.equals("GET")){
                         String transactionId = node.splitPacket(msg)[1];
                         int clientId = Integer.valueOf(node.splitPacket(msg)[2]); 
-
+                        System.out.println("Received GET query -> \""+msg+"\"");
                         if(!node.getTransactions().contains(transactionId)){
                             String key = node.splitPacket(msg)[3];
                             node.addTransaction(transactionId);
@@ -197,7 +196,6 @@ public class Node{
                                 String value = node.getData().get(key);
                                 String resp = "RESPONSE:"+randomId+":"+clientId+":"+value;
 
-                                System.out.println(resp);
                                 if(node.hasClient(Integer.valueOf(clientId))){
                                     Client client = null;
                                     for(Client c: node.getClients()){
@@ -211,6 +209,7 @@ public class Node{
                                     InetAddress serverName = InetAddress.getByName("localhost");
                                     packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
                                     server.send(packet);
+                                    System.out.println("Sending response to the client");
                                 }else{
                                     node.broadcast(resp); 
                                 }
@@ -219,6 +218,7 @@ public class Node{
                             }
                         }
                     }else if(packetType.equals("SET")){
+                        System.out.println("Received SET query -> \""+msg+"\"");
                         if(!node.isFull()){
                             String key = node.splitPacket(msg)[3];
                             String value = node.splitPacket(msg)[4];
@@ -226,7 +226,7 @@ public class Node{
 
                             node.addData(key, value);
                             node.addTransaction(transactionId);
-                            System.out.println("result " + node.getData().get(key));
+                            System.out.println("Storing the value \"" + node.getData().get(key)+"\" with the key \""+key+"\" in this node");
                         }else if(node.getNeighbors().size() > 0){
                             int randomNum = (int)(Math.random() * node.getNeighbors().size());
                             NodeFunctions randomNeighbor = node.getNeighbors().get(randomNum);
@@ -243,11 +243,11 @@ public class Node{
                     }else if(packetType.equals("RESPONSE")){
                         String transactionId = node.splitPacket(msg)[1];
                         String clientId = node.splitPacket(msg)[2];
+                        System.out.println("Received RESPONSE query -> \""+msg+"\"");
 
                         if(!node.getTransactions().contains(transactionId)){
                             node.addTransaction(transactionId);
                             //If the node has the client, then redirect the response packet to the client
-                            System.out.println(node.splitPacket(msg)[3]);
                             if(node.hasClient(Integer.valueOf(clientId))){
                                 Client client = null;
                                 for(Client c: node.getClients()){
@@ -261,8 +261,7 @@ public class Node{
                                 buffer = msg.getBytes();
                                 packet = new DatagramPacket(buffer, buffer.length, serverName, destinationPort);
                                 server.send(packet);
-                                System.out.println(msg);
-                                System.out.println("Sending response");
+                                System.out.println("Sending response to the client");
                             }else{
                                 node.broadcast(msg);
                             }
